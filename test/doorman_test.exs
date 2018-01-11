@@ -6,23 +6,36 @@ defmodule DoormanTest do
   @valid_alternate_email "brandy@dirt.com"
 
   defmodule FakeSuccessRepo do
-    def get_by(OtherFake, email: "brandy@dirt.com") do
-      %{
-        email: "brandy@dirt.com",
-        hashed_password: Comeonin.Bcrypt.hashpwsalt("password")
-      }
+    def get_by(Fake, key) do
+      case key do
+        k when k in [[email: "joe@dirt.com"], [username: "joe_dirt"]]  ->
+          %{
+            username: "joe_dirt",
+            email: "joe@dirt.com",
+            hashed_password: Comeonin.Bcrypt.hashpwsalt("password")
+          }
+        _ ->
+          nil
+      end
     end
-    def get_by(Fake, email: "joe@dirt.com") do
-      %{
-        email: "joe@dirt.com",
-        hashed_password: Comeonin.Bcrypt.hashpwsalt("password")
-      }
+
+    def get_by(OtherFake, key) do
+      case key do
+        k when k in [[email: "brandy@dirt.com"], [username: "brandy_dirt"]] ->
+          %{
+            username: "brandy_dirt",
+            email: "brandy@dirt.com",
+            hashed_password: Comeonin.Bcrypt.hashpwsalt("password")
+          }
+        _ ->
+          nil
+      end
     end
-    def get_by(Fake, email: _email), do: nil
 
     def get(Fake, id) do
       if id == 1 do
         %{
+          username: "joe_dirt",
           email: "joe@dirt.com",
           hashed_password: Comeonin.Bcypt.hashpwsalt("password")
         }
@@ -30,6 +43,50 @@ defmodule DoormanTest do
         nil
       end
     end
+  end
+
+  test "authenticate/1 takes valid keyword list and returns" do
+    Mix.Config.persist([doorman: %{
+       repo: FakeSuccessRepo,
+       user_module: Fake,
+       secure_with: Doorman.Auth.Bcrypt,
+    }])
+
+    assert Doorman.authenticate(username: "joe_dirt", password: "password").email == "joe@dirt.com"
+    assert Doorman.authenticate(email: "joe@dirt.com", password: "password").email == "joe@dirt.com"
+  end
+
+  test "authenticate/1 takes invalid input and returns nil" do
+    Mix.Config.persist([doorman: %{
+       repo: FakeSuccessRepo,
+       user_module: Fake,
+       secure_with: Doorman.Auth.Bcrypt,
+    }])
+
+    assert Doorman.authenticate(email: "asdfkjkl", password: "password") == nil
+    assert Doorman.authenticate(username: "asdfkjkl", password: "password") == nil
+  end
+
+  test "authenticate/1 takes valid input and invalid password and returns nil" do
+    Mix.Config.persist([doorman: %{
+       repo: FakeSuccessRepo,
+       user_module: Fake,
+       secure_with: Doorman.Auth.Bcrypt,
+    }])
+
+    assert Doorman.authenticate(email: @valid_email, password: "asdffdas") == nil
+    assert Doorman.authenticate(username: "joe_dirt", password: "asdffdas") == nil
+  end
+
+  test "authenticate/2 takes an optional user module" do
+    Mix.Config.persist([doorman: %{
+       repo: FakeSuccessRepo,
+       user_module: Fake,
+       secure_with: Doorman.Auth.Bcrypt,
+    }])
+
+    assert Doorman.authenticate(OtherFake, username: "brandy_dirt", password: "password").email == "brandy@dirt.com"
+    assert Doorman.authenticate(OtherFake, email: "brandy@dirt.com", password: "password").email == "brandy@dirt.com"
   end
 
   test "authenticate/3 takes valid email and valid password and returns true" do
